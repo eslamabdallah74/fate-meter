@@ -278,3 +278,21 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-muted);
 }
+
+/* RTL Support */
+[dir="rtl"] {
+  font-family: 'Noto Sans Arabic', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+[dir="rtl"] .nav-links {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .nav-links a.router-link-active::after {
+  left: auto;
+  right: auto;
+}
+
+[dir="rtl"] .meter-footer {
+  text-align: left;
+}

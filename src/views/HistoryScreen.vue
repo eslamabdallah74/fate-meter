@@ -1,16 +1,16 @@
 <template>
   <div class="history-screen">
     <div class="history-header">
-      <h1 class="history-title">📜 Timeline</h1>
-      <p class="history-subtitle">Every decision. Every consequence.</p>
+      <h1 class="history-title">{{ t('timelineTitle') }}</h1>
+      <p class="history-subtitle">{{ t('timelineSubtitle') }}</p>
     </div>
 
     <div v-if="sortedDecisions.length === 0" class="empty-state">
       <span class="empty-icon">🔮</span>
-      <p>No decisions yet.</p>
-      <p class="empty-sub">Your future is unwritten.</p>
+      <p>{{ t('noDecisions') }}</p>
+      <p class="empty-sub">{{ t('futureUnwritten') }}</p>
       <router-link to="/" class="btn btn-study" style="margin-top: 16px; width: auto;">
-        Make your first decision →
+        {{ t('makeFirstDecision') }}
       </router-link>
     </div>
 
@@ -25,9 +25,9 @@
           v-for="(decision, i) in group"
           :key="i"
           class="timeline-item"
-          :class="[`type-${decision.type}`, { 'danger-point': isDangerPoint(decision, i, group) }]"
+          :class="{ 'danger-point': isDangerPoint(decision, i, group) }"
         >
-          <div class="timeline-dot" :style="{ background: getColor(decision.type) }"></div>
+          <div class="timeline-dot" :style="{ background: getDotColor(decision.type) }"></div>
           <div class="timeline-content">
             <div class="timeline-action">
               <span class="timeline-icon">{{ getIcon(decision.type) }}</span>
@@ -47,12 +47,11 @@
       </div>
     </div>
 
-    <!-- Danger Zone Warning -->
     <div v-if="store.regret >= 60" class="danger-warning">
       <span>⚠️</span>
-      <span>You're in the danger zone. One more wrong move and you crash.</span>
+      <span>{{ t('dangerWarning') }}</span>
       <router-link to="/recovery" class="btn btn-recovery" style="margin-top: 12px;">
-        Enter Recovery Mode →
+        {{ t('enterRecovery') }}
       </router-link>
     </div>
   </div>
@@ -61,9 +60,11 @@
 <script setup>
 import { computed } from 'vue'
 import { useGameStore } from '../stores/game'
-import { getActionConfig } from '../utils/gameLogic'
+import { useI18n } from '../composables/useI18n'
+import { getActivityConfig } from '../utils/gameLogic'
 
 const store = useGameStore()
+const { t, lang } = useI18n()
 
 const sortedDecisions = computed(() =>
   [...store.decisions].sort((a, b) => b.time - a.time)
@@ -79,29 +80,33 @@ const groupedDecisions = computed(() => {
   return groups
 })
 
-function getColor(type) {
-  return getActionConfig(type).color
+function getDotColor(type) {
+  const config = getActivityConfig(type)
+  return config.regretChange > 0 ? '#ff3366' : '#00ff88'
 }
 
 function getIcon(type) {
-  return getActionConfig(type).icon
+  return getActivityConfig(type).icon
 }
 
 function getLabel(type) {
-  return getActionConfig(type).label
+  const config = getActivityConfig(type)
+  return t(config.labelKey)
 }
 
 function formatDate(dateStr) {
   const date = new Date(dateStr)
   const today = new Date().toISOString().split('T')[0]
   const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0]
-  if (dateStr === today) return 'Today'
-  if (dateStr === yesterday) return 'Yesterday'
-  return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+  if (dateStr === today) return t('today')
+  if (dateStr === yesterday) return lang.value === 'ar' ? 'أمس' : 'Yesterday'
+  const locale = lang.value === 'ar' ? 'ar' : 'en-US'
+  return date.toLocaleDateString(locale, { weekday: 'short', month: 'short', day: 'numeric' })
 }
 
 function formatTime(timestamp) {
-  return new Date(timestamp).toLocaleTimeString('en-US', {
+  const locale = lang.value === 'ar' ? 'ar' : 'en-US'
+  return new Date(timestamp).toLocaleTimeString(locale, {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true
@@ -109,158 +114,40 @@ function formatTime(timestamp) {
 }
 
 function isDangerPoint(decision, index, group) {
-  // Mark when 3 consecutive skips happen
-  if (decision.type !== 'skip') return false
-  const before = group.slice(Math.max(0, index), index + 3)
-  return before.length >= 3 && before.every(d => d.type === 'skip')
+  if (index + 2 >= group.length) return false
+  const config1 = getActivityConfig(group[index].type)
+  const config2 = getActivityConfig(group[index + 1]?.type || '')
+  const config3 = getActivityConfig(group[index + 2]?.type || '')
+  return config1.regretChange > 0 && config2.regretChange > 0 && config3.regretChange > 0
 }
 </script>
 
 <style scoped>
-.history-screen {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-  padding-bottom: 40px;
-}
+.history-screen { display: flex; flex-direction: column; gap: 24px; padding-bottom: 40px; }
+.history-header { text-align: center; }
+.history-title { font-size: 1.8rem; font-weight: 700; color: var(--neon-blue); margin-bottom: 8px; }
+.history-subtitle { color: var(--text-secondary); font-size: 0.95rem; }
+.empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); }
+.empty-icon { font-size: 3rem; display: block; margin-bottom: 16px; }
+.empty-sub { margin-top: 4px; font-size: 0.9rem; }
 
-.history-header {
-  text-align: center;
-}
+.timeline-group { margin-bottom: 24px; }
+.timeline-date { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); margin-bottom: 12px; padding-inline-start: 28px; }
+.timeline-item { display: flex; align-items: flex-start; gap: 16px; padding: 12px 0; padding-inline-start: 12px; position: relative; border-inline-start: 2px solid var(--border-color); margin-inline-start: 8px; transition: all var(--transition); }
+.timeline-item:hover { background: rgba(255, 255, 255, 0.02); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
+.timeline-item.danger-point { background: rgba(255, 51, 102, 0.05); border-inline-start-color: var(--neon-red); }
+.timeline-item.danger-point::after { content: attr(data-danger-text); position: absolute; bottom: -8px; inset-inline-start: 40px; font-size: 0.7rem; color: var(--neon-red); font-style: italic; }
+.timeline-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; box-shadow: 0 0 8px currentColor; }
+.timeline-content { flex: 1; display: flex; justify-content: space-between; align-items: center; }
+.timeline-action { display: flex; align-items: center; gap: 8px; }
+.timeline-icon { font-size: 1.2rem; }
+.timeline-label { font-weight: 600; font-size: 0.95rem; }
+.timeline-meta { display: flex; align-items: center; gap: 12px; }
+.timeline-time { font-size: 0.8rem; color: var(--text-muted); }
+.timeline-regret { font-size: 0.85rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.timeline-regret.up { color: var(--neon-red); }
+.timeline-regret.down { color: var(--neon-green); }
 
-.history-title {
-  font-size: 1.8rem;
-  font-weight: 700;
-  color: var(--neon-blue);
-  margin-bottom: 8px;
-}
-
-.history-subtitle {
-  color: var(--text-secondary);
-  font-size: 0.95rem;
-}
-
-.empty-state {
-  text-align: center;
-  padding: 60px 20px;
-  color: var(--text-muted);
-}
-
-.empty-icon {
-  font-size: 3rem;
-  display: block;
-  margin-bottom: 16px;
-}
-
-.empty-sub {
-  margin-top: 4px;
-  font-size: 0.9rem;
-}
-
-/* Timeline */
-.timeline-group {
-  margin-bottom: 24px;
-}
-
-.timeline-date {
-  font-size: 0.8rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  color: var(--text-muted);
-  margin-bottom: 12px;
-  padding-left: 28px;
-}
-
-.timeline-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 16px;
-  padding: 12px 0;
-  padding-left: 12px;
-  position: relative;
-  border-left: 2px solid var(--border-color);
-  margin-left: 8px;
-  transition: all var(--transition);
-}
-
-.timeline-item:hover {
-  background: rgba(255, 255, 255, 0.02);
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-}
-
-.timeline-item.danger-point {
-  background: rgba(255, 51, 102, 0.05);
-  border-left-color: var(--neon-red);
-}
-
-.timeline-item.danger-point::after {
-  content: '⚠️ This is where things went wrong';
-  position: absolute;
-  bottom: -8px;
-  left: 40px;
-  font-size: 0.7rem;
-  color: var(--neon-red);
-  font-style: italic;
-}
-
-.timeline-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  margin-top: 4px;
-  box-shadow: 0 0 8px currentColor;
-}
-
-.timeline-content {
-  flex: 1;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.timeline-action {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.timeline-icon {
-  font-size: 1.2rem;
-}
-
-.timeline-label {
-  font-weight: 600;
-  font-size: 0.95rem;
-}
-
-.timeline-meta {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.timeline-time {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-}
-
-.timeline-regret {
-  font-size: 0.85rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-
-.timeline-regret.up {
-  color: var(--neon-red);
-}
-
-.timeline-regret.down {
-  color: var(--neon-green);
-}
-
-/* Danger Warning */
 .danger-warning {
   background: rgba(255, 51, 102, 0.1);
   border: 1px solid rgba(255, 51, 102, 0.3);

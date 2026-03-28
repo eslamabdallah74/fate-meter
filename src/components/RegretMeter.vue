@@ -1,7 +1,7 @@
 <template>
   <div class="regret-meter animate-slide-up" :style="{ animationDelay: '0.1s' }">
     <div class="meter-header">
-      <span class="meter-label">Regret Meter</span>
+      <span class="meter-label">{{ t('regretMeter') }}</span>
       <span class="meter-value" :style="{ color: barColor }">{{ displayValue }}%</span>
     </div>
     <div class="meter-track">
@@ -21,11 +21,13 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { getRegretColor, getRegretMessage } from '../utils/gameLogic'
+import { useI18n } from '../composables/useI18n'
 
 const props = defineProps({
   value: { type: Number, default: 0 }
 })
 
+const { t } = useI18n()
 const displayValue = ref(0)
 
 const barColor = computed(() => getRegretColor(displayValue.value))

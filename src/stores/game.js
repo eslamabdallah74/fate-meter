@@ -1,11 +1,14 @@
 import { defineStore } from 'pinia'
 import {
   getFutureState,
-  getActionConfig,
+  getActivityConfig,
   detectPattern,
   checkDailyReset,
-  getInsight
+  getInsight,
+  getLastNegativeCategory,
+  getRecoveryMissions
 } from '../utils/gameLogic'
+import { useI18n } from '../composables/useI18n'
 
 const STORAGE_KEY = 'fatemeter_game'
 
@@ -21,7 +24,7 @@ function loadState() {
 
 function getDefaultState() {
   return {
-    regret: 30,
+    regret: 0,
     streak: 0,
     state: 'stable',
     decisions: [],
@@ -39,9 +42,21 @@ export const useGameStore = defineStore('game', {
 
   getters: {
     futureState: (state) => getFutureState(state.regret),
-    insight: (state) => getInsight(state.regret, state.decisions, state.streak),
-    pattern: (state) => detectPattern(state.decisions),
-    dailyReset: (state) => checkDailyReset(state),
+    insight: (state) => {
+      const { lang } = useI18n()
+      lang.value // track dependency
+      return getInsight(state.regret, state.decisions, state.streak)
+    },
+    pattern: (state) => {
+      const { lang } = useI18n()
+      lang.value
+      return detectPattern(state.decisions)
+    },
+    dailyReset: (state) => {
+      const { lang } = useI18n()
+      lang.value
+      return checkDailyReset(state)
+    },
     todayDecisions: (state) => {
       const today = new Date().toISOString().split('T')[0]
       return state.decisions.filter(d => {
@@ -49,12 +64,19 @@ export const useGameStore = defineStore('game', {
         return dDate === today
       })
     },
-    todaySkips: (state) => {
+    todayNegatives: (state) => {
       const today = new Date().toISOString().split('T')[0]
       return state.decisions.filter(d => {
         const dDate = new Date(d.time).toISOString().split('T')[0]
-        return dDate === today && d.type === 'skip'
+        if (dDate !== today) return false
+        const config = getActivityConfig(d.type)
+        return config.regretChange > 0
       }).length
+    },
+    lastNegativeCategory: (state) => getLastNegativeCategory(state.decisions),
+    recoveryMissions: (state) => {
+      const catId = getLastNegativeCategory(state.decisions)
+      return getRecoveryMissions(catId)
     }
   },
 
@@ -72,9 +94,10 @@ export const useGameStore = defineStore('game', {
       }
     },
 
-    makeDecision(type) {
-      const config = getActionConfig(type)
+    makeDecision(activityId) {
+      const config = getActivityConfig(activityId)
       const prevRegret = this.regret
+      const isPositive = config.regretChange < 0
 
       this.regret += config.regretChange
       this.regret = Math.max(0, Math.min(100, this.regret))
@@ -82,7 +105,7 @@ export const useGameStore = defineStore('game', {
       this.state = getFutureState(this.regret)
 
       const decision = {
-        type,
+        type: activityId,
         time: Date.now(),
         regretBefore: prevRegret,
         regretAfter: this.regret,
@@ -94,18 +117,20 @@ export const useGameStore = defineStore('game', {
       this.lastCheckIn = new Date().toISOString().split('T')[0]
 
       // streak logic
-      if (type === 'study' || type === 'focus') {
+      if (isPositive) {
         const yesterday = new Date()
         yesterday.setDate(yesterday.getDate() - 1)
         const yStr = yesterday.toISOString().split('T')[0]
         const hadYesterday = this.decisions.some(d => {
           const dDate = new Date(d.time).toISOString().split('T')[0]
-          return dDate === yStr && (d.type === 'study' || d.type === 'focus')
+          if (dDate !== yStr) return false
+          const cfg = getActivityConfig(d.type)
+          return cfg.regretChange < 0
         })
         if (hadYesterday || this.streak === 0) {
           this.streak++
         }
-      } else if (type === 'skip' && this.todaySkips >= 3) {
+      } else if (this.todayNegatives >= 3) {
         this.streak = 0
       }
 
